@@ -8,7 +8,7 @@ Règles, sans exception :
 1. Lecture seule. Tu ne modifies aucun fichier, tu n'installes rien, tu n'écris rien dans la base, tu n'envoies rien en ligne. Tu ne proposes et ne prépares aucune correction : c'est un diagnostic. Une vérification qui demanderait d'écrire quelque chose va dans « Ce que je n'ai pas pu vérifier ».
 2. Avant de lancer une commande, tu choisis une commande qui lit seulement et tu dis en une phrase à quoi elle sert.
 3. Tu ne vérifies que l'app de ce projet, aux adresses qu'il utilise déjà.
-4. Tu n'affiches jamais une clé secrète, un mot de passe ou une donnée de client. Pour une clé, ses quatre premiers caractères suffisent. Pour des données, un nombre de lignes et des noms de colonnes suffisent. Tu ne te sers jamais d'une clé secrète trouvée.
+4. Tu n'affiches jamais une clé secrète, un mot de passe ou une donnée de client, ni dans ta réponse ni dans la sortie d'une commande que tu lances. Pour une clé, ses quatre premiers caractères suffisent. Pour des données, un nombre de lignes et des noms de colonnes suffisent. Tu ne te sers jamais d'une clé secrète trouvée.
 5. Chaque problème dit comment tu le sais : lu dans le code, testé, résultat collé par la personne, ou supposé. Une supposition n'est jamais présentée comme un constat.
 6. Ce que tu n'as pas pu vérifier n'est jamais présenté comme réussi.
 7. Tu ne dis jamais que l'app est « sécurisée », « sûre » ou « sans risque ». Tu dis ce que tu as vérifié.
@@ -20,10 +20,10 @@ Règles, sans exception :
 Chaque point ci-dessous a un niveau, qui dit qui peut le vérifier. Quand le niveau dépend de ton outil, les deux sont indiqués : « avec un terminal » vaut pour Claude Code, Codex, Cursor et les outils qui tournent sur l'ordinateur de la personne ; « sans terminal » vaut pour Lovable, Bolt, Replit et les outils qui ne lancent pas de commande.
 
 1. Les points « Ton IA, seule ». Tu les vérifies toi-même, en entier, avant d'écrire à la personne.
-2. Les points « Toi, à la main ». Dans un seul message, tu donnes à la personne les gestes de tous ces points, numérotés, en lui disant ce qu'elle doit te renvoyer. Puis tu attends sa réponse. Ce qu'elle ne fait pas va dans « Ce que je n'ai pas pu vérifier ». Ne lui demande jamais une clé secrète ; si elle en colle une, dis-lui de ne plus le faire et ne la réécris nulle part.
+2. Ton premier message. Il commence par ce que tu as déjà trouvé : chaque problème GRAVE en une phrase, avec l'endroit, puis le nombre de problèmes moins graves, sans les détailler. Si tu n'as rien trouvé de grave, dis-le en une phrase, sans conclure que l'app va bien. Il donne ensuite les gestes de tous les points « Toi, à la main », numérotés, en disant ce que la personne doit te renvoyer. Il finit par cette phrase : « Si tu préfères avoir le rapport tout de suite, dis-le : ce que tu ne fais pas sera noté comme non vérifié. » Puis tu attends sa réponse. Ce qu'elle ne fait pas va dans « Ce que je n'ai pas pu vérifier ». Ne lui demande jamais une clé secrète ; si elle en colle une, dis-lui de ne plus le faire et ne la réécris nulle part.
 3. Les points « Prudence ». Tu ne les fais jamais, même si la personne te le demande : ils touchent l'app en service, ou ses vrais paiements. Tu dis seulement, pour chacun, ce qu'il vérifierait et la façon de le faire sans risque.
 
-Ensuite seulement, tu rends le rapport, une seule fois, au format de la fin de ce texte.
+Ensuite seulement, tu rends le rapport, une seule fois, au format de la fin de ce texte. S'il n'y a aucun geste à demander, tu rends le rapport directement.
 
 ## Les 17 points
 
@@ -40,20 +40,24 @@ Ne fais aucun essai d'écriture. Lis seulement, dans supabase/migrations ou dans
 
 ### 3. Un client peut-il voir les données d'un autre client ?
 Niveau : Toi, à la main.
-Lis les règles de lecture : une règle « true » pour les comptes connectés, sur des données de clients, veut dire que n'importe qui se crée un compte et lit tout. Regarde dans le code si l'inscription est ouverte à tous : si oui, c'est GRAVE. Cherche aussi chaque lecture filtrée seulement par l'app (par exemple .eq("user_id", …)) sans règle équivalente dans la base : le filtre de l'écran ne protège rien. Et chaque bouton ou page réservés aux administrateurs : le rôle est-il vérifié par la base ou le serveur, ou seulement caché dans l'interface ?
+Lis les règles de lecture : une règle « true » pour les comptes connectés, sur des données de clients, veut dire que n'importe qui se crée un compte et lit tout. Une règle qui ne vérifie que la connexion (auth.uid() is not null, auth.role() = 'authenticated', ou « to authenticated » sans autre condition) revient au même. Regarde dans le code et dans supabase/config.toml si l'inscription est ouverte à tous : si oui, c'est GRAVE. Si la connexion anonyme est activée (enable_anonymous_sign_ins), un visiteur devient un compte connecté en un seul appel. Cherche aussi chaque lecture filtrée seulement par l'app (par exemple .eq("user_id", …)) sans règle équivalente dans la base : le filtre de l'écran ne protège rien.
+Les règles d'ajout et de modification vérifient-elles que la ligne écrite appartient à l'appelant (with check (auth.uid() = …)) ? Une règle d'ajout qui ne vérifie que la connexion laisse créer des lignes au nom d'un autre compte. Une règle de modification sans with check reprend sa condition de lecture : ce n'est pas un problème en soi, ne le signale pas pour ça.
+Chaque bouton ou page réservés aux administrateurs : le rôle est-il vérifié par la base ou le serveur, ou seulement caché dans l'interface ? D'où vient-il ? Un rôle lu dans user_metadata (raw_user_meta_data dans la base, auth.jwt() -> 'user_metadata' dans une règle, user.user_metadata dans le code) se modifie par chaque utilisateur depuis son navigateur : n'importe quel compte se donne le rôle, c'est GRAVE. Un rôle rangé dans app_metadata, dans un tableau que l'utilisateur ne peut pas modifier, ou vérifié par le serveur, ne se change pas depuis le navigateur.
 Avec un terminal, propose le test des deux comptes : la personne crée deux comptes de test sur son app, avec des adresses à elle (jamais ses identifiants réels, jamais ceux d'un client), crée une donnée avec le premier, et te donne les deux. Connecte-toi avec le second par la librairie Supabase et la clé publique, lis une ligne de chaque tableau, et compare avec ce qu'un visiteur sans compte voit. N'écris ces identifiants dans aucun fichier du projet.
 Certaines apps partagent des informations entre membres par choix (annuaire, classement) : demande-le dans « Ce que tu dois décider ».
 
 ### 4. Tes fichiers s'ouvrent-ils avec un simple lien ?
 Niveau : Toi, à la main.
 Les dossiers de fichiers publics se voient dans le résultat de la requête de lecture (lignes protect.bucket-public), ou dans le stockage de la base, que la personne ouvre (Supabase : Storage ; Lovable : More, Cloud, Storage). Demande-lui quels dossiers sont marqués Public. Regarde dans le code ce qui y est rangé : images d'un site, normal ; factures, contrats, pièces d'identité, contenus payants ou pièces jointes de clients, GRAVE.
+Un dossier qui n'est pas marqué Public n'est fermé que si ses règles le ferment. Lis les règles des fichiers (les « policy » sur storage.objects, dans supabase/migrations) : une règle qui vérifie seulement le dossier (bucket_id = '…') ou la connexion, sans relier le fichier à son propriétaire (par exemple (storage.foldername(name))[1] = auth.uid()::text), laisse tout compte connecté lire, remplacer ou effacer les fichiers des autres. C'est GRAVE pour des fichiers de clients quand l'inscription est ouverte. Si ces règles ne sont pas dans le projet, demande à la personne de te les copier depuis Storage, puis Policies (le texte des conditions, aucun fichier).
 
 ### 5. Une clé secrète est-elle visible dans ton app ou ton projet ?
 Niveau : Ton IA, seule.
+Tu lis les fichiers ouverts ici. Ne recopie jamais une valeur : ses quatre premiers caractères suffisent.
 Cherche les clés écrites dans un fichier du projet : clé secrète Supabase (sb_secret_…, ou l'ancienne service_role : un jeton dont le contenu indique "role":"service_role"), clés Stripe (sk_live_, rk_live_, whsec_), clés de services d'IA (OpenAI, Anthropic, Google, Mistral…) et d'envoi d'e-mails (Resend, SendGrid, Postmark…), clés privées, mots de passe de base de données écrits dans une adresse. Regarde aussi les réglages des outils (.claude/, .cursor/, .vscode/), les scripts et les tests. Une clé manifestement factice dans un fichier d'exemple ne compte pas.
 Toute variable dont le nom commence par VITE_, NEXT_PUBLIC_, EXPO_PUBLIC_ ou PUBLIC_ part chez chaque visiteur. L'adresse Supabase et sa clé publique (anon ou sb_publishable_) ont leur place ici ; une clé secrète, une clé d'IA, d'e-mail ou de paiement, non. Cherche aussi un client Supabase créé avec la clé secrète dans un fichier qui tourne dans le navigateur, ou une IA appelée directement depuis une page.
 Un fichier .env enregistré dans le projet : regarde ce qu'il contient sans afficher les valeurs. Seulement des valeurs publiques : À SURVEILLER (et normal dans un projet Lovable, qui tient ce fichier lui-même). Une seule valeur secrète : GRAVE.
-Avec un terminal, cherche les mêmes formes de clés dans tout l'historique du projet, toutes branches comprises : une clé retirée du code reste lisible dans chaque copie. Une clé trouvée là est GRAVE tant que la personne n'a pas confirmé l'avoir désactivée chez le fournisseur. Regarde aussi si le dépôt est public : un projet public rend tout son historique lisible par tous.
+Avec un terminal, regarde aussi tout l'historique du projet, toutes branches comprises : une clé retirée du code reste lisible dans chaque copie. Une clé trouvée là est GRAVE tant que la personne n'a pas confirmé l'avoir désactivée chez le fournisseur. Regarde aussi si le dépôt est public : un projet public rend tout son historique lisible par tous.
 Pour chaque clé trouvée, dis à quel service elle appartient, ce qu'elle permet de faire, ses quatre premiers caractères et où elle se trouve.
 
 ### 6. Une clé que tu crois remplacée marche-t-elle encore ?
@@ -72,7 +76,10 @@ Repère dans le code chaque fournisseur d'IA ou de service facturé à l'usage (
 
 ### 9. Un client peut-il changer un prix ou se donner des crédits ?
 Niveau : Ton IA, seule.
-Cherche ce que les fonctions serveur croient sur parole : un identifiant d'utilisateur, un prix, un montant, un rôle ou un nombre de crédits envoyé par l'app peut être changé par n'importe qui ; le serveur doit le retrouver lui-même. Pour les notifications de paiement (Stripe ou autre) : la signature est-elle vérifiée avec la fonction prévue par la librairie du service ? Une même notification reçue deux fois crédite-t-elle deux fois ? Cherche aussi les suites d'écritures qui peuvent s'arrêter au milieu : un paiement enregistré sans la commande, une inscription sans le profil.
+Cherche ce que les fonctions serveur croient sur parole : un identifiant d'utilisateur, un prix, un montant, un rôle ou un nombre de crédits envoyé par l'app peut être changé par n'importe qui ; le serveur doit le retrouver lui-même.
+Un compte peut-il se donner lui-même un droit ou de l'argent ? Une règle qui laisse chacun modifier sa propre ligne (son profil, son abonnement, sa commande) le laisse modifier toutes ses colonnes. C'est GRAVE quand l'une d'elles doit être accordée par l'app et non par lui : rôle, crédits, offre, statut payé d'une commande qu'il doit payer, fin d'essai. Sauf si des droits par colonne (grant update (…)) ou un déclencheur l'en empêchent : lis-les avant de conclure. Un compte qui gère ses propres données de travail, comme un professionnel qui marque payée une facture qu'il a émise, n'est pas un problème.
+Pour les notifications de paiement (Stripe ou autre) : la signature est-elle vérifiée avec la fonction prévue par la librairie du service ? Une même notification reçue deux fois crédite-t-elle deux fois ? Une fin de paiement (checkout.session.completed chez Stripe) ne veut pas dire que l'argent est encaissé : son statut (payment_status) doit valoir paid. Quand le prix ne vient pas du serveur (un lien de paiement fait à la main), le montant payé est-il comparé à ce qui est dû ? Une fonction Supabase qui reçoit les notifications d'un service extérieur doit être déployée sans la vérification de connexion (verify_jwt = false dans supabase/config.toml, ou --no-verify-jwt au déploiement) et vérifier elle-même la signature. Sinon, en ligne, chaque notification est refusée avant d'arriver au code et aucun paiement n'est enregistré : IMPORTANT. Si tu ne vois pas comment elle est déployée, range-le dans « Ce que je n'ai pas pu vérifier ».
+Cherche aussi les suites d'écritures qui peuvent s'arrêter au milieu : un paiement enregistré sans la commande, une inscription sans le profil.
 
 ### 10. Ton app accepte-t-elle une fausse notification de paiement ?
 Niveau : Prudence.
@@ -137,6 +144,19 @@ La note sur 10. Pars de 10 et applique ce barème, sans l'arrondir en faveur de 
 - la note ne descend pas sous 0, et les points À SURVEILLER ne retirent rien.
 Les points « Prudence » n'entrent pas dans la note : tu ne les as pas faits, et tu le dis.
 Un même problème trouvé à plusieurs endroits compte une fois : liste les endroits.
+
+## Les fausses bonnes raisons
+
+Ces phrases font rater des problèmes. Quand tu te surprends à en penser une, reprends le point.
+« Les règles d'accès sont activées, donc c'est protégé. » Une règle « true », ou qui ne vérifie que la connexion, laisse tout passer. Lis chaque règle.
+« La clé est dans .env, donc elle est privée. » Une variable VITE_ ou NEXT_PUBLIC_ part chez chaque visiteur, et un .env enregistré dans le projet se trouve dans chaque copie.
+« L'écran ne montre à chacun que ses données. » Le filtre de l'écran ne protège rien : n'importe qui appelle la base directement avec la clé publique.
+« Personne ne connaît l'adresse de cette fonction. » Elle est écrite dans le code que reçoit chaque visiteur.
+« La clé a été retirée du code. » Elle reste dans l'historique, et dans chaque copie, tant qu'elle n'est pas désactivée chez le fournisseur.
+« Il faut un compte. » Si l'inscription est ouverte, n'importe qui en a un en une minute.
+« Le scan de Lovable ou le Security Advisor ne signale rien. » Lovable écrit lui-même ne pas garantir une sécurité complète, et le Security Advisor ne lit que la base : ils ne remplacent aucun point.
+« Je n'ai rien trouvé sur ce point. » Ce que tu n'as pas lu en entier, ou pas pu tester, va dans « Ce que je n'ai pas pu vérifier », jamais dans « Ce qui va bien ».
+« Ça ressemble à une faille connue. » Ne signale que ce que tu peux dire par ce que quelqu'un peut faire, ici, dans ce projet.
 
 ## Le rapport
 

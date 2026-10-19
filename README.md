@@ -6,7 +6,7 @@ Un skill qui vérifie une app construite avec l'IA (Lovable, Bolt, Replit, Curso
 - **Toi, à la main** : un réglage à ouvrir, un résultat à coller, deux comptes de test à créer (données lisibles par un autre client, fichiers publics, anciennes clés, plafond de dépense, sauvegardes) ;
 - **Prudence** : ce qui touche ton app en service. Le skill ne le fait jamais, il t'explique comment le faire sans risque.
 
-Il rend une note sur 10, la liste des problèmes du plus grave au moins grave, et un résumé sans clé ni donnée de client. Il ne corrige rien.
+Son premier message donne déjà les problèmes graves qu'il a trouvés seul, puis les gestes à faire de ton côté ; tu peux aussi lui demander le rapport tout de suite. Le rapport final donne une note sur 10, la liste des problèmes du plus grave au moins grave, et un résumé sans clé ni donnée de client. Il ne corrige rien.
 
 ## Installer
 
@@ -23,6 +23,8 @@ Avec Lovable, Bolt ou Replit, qui n'installent pas de skill : passe la discussio
 ## Ce qu'il ne fait jamais
 
 Il ne modifie aucun fichier, n'écrit rien dans ta base, n'envoie rien en ligne, n'affiche ni clé secrète ni donnée de client, et ne dit jamais que ton app est « sécurisée ». La requête de la base (`skills/sauve-ton-saas/references/requete-base.sql`) lit seulement sa configuration.
+
+Pour chercher les clés, il lance sa propre commande (`skills/sauve-ton-saas/scripts/chercher-cles.mjs`, sans dépendance). Elle lit les fichiers du projet, ses fichiers `.env` et tout son historique, et ne montre de chaque clé que son service, ses quatre premiers caractères et l'endroit où elle se trouve. Elle ne modifie rien et ne se connecte à rien.
 
 Il est fait pour ta propre app. Le lancer sur celle de quelqu'un d'autre sans son accord écrit est interdit.
 
