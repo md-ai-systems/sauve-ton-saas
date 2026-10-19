@@ -122,12 +122,18 @@ function parcourir(racine, dossier = racine, sortie = []) {
   return sortie;
 }
 
+// Un lien (comme celui que `npx skills add` pose dans .claude/skills), un dossier ou un fichier
+// illisible n'est pas lu : seul un vrai fichier texte l'est.
 function lireTexte(chemin) {
-  const stat = fs.statSync(chemin);
-  if (stat.size > TAILLE_MAX) return null;
-  const tampon = fs.readFileSync(chemin);
-  if (tampon.subarray(0, 8000).includes(0)) return null;
-  return tampon.toString("utf8");
+  try {
+    const stat = fs.lstatSync(chemin);
+    if (!stat.isFile() || stat.size > TAILLE_MAX) return null;
+    const tampon = fs.readFileSync(chemin);
+    if (tampon.subarray(0, 8000).includes(0)) return null;
+    return tampon.toString("utf8");
+  } catch {
+    return null;
+  }
 }
 
 // Les variables d'un fichier .env : leur nom, ce que contient la valeur, jamais la valeur.
