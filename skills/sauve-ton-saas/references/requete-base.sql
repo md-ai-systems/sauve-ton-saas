@@ -139,6 +139,54 @@ regles_ouvertes as (
   from pg_policies p
   where p.schemaname = 'public'
     and (p.qual = 'true' or p.with_check = 'true')
+    and not (p.roles <@ array['service_role']::name[])
+),
+
+-- Une règle dont la seule condition est la connexion (auth.uid() is not null, ou auth.role()
+-- égal à authenticated) laisse chaque compte tout lire ou tout modifier.
+-- Postgres ajoute des parenthèses à la condition, et écrit uid() au lieu de auth.uid() quand le
+-- schéma auth fait partie du chemin de recherche de celui qui lit : le motif accepte tout cela.
+motif_connexion as (
+  select
+    '^[([:space:]]*(select[[:space:]]+)?(auth[.])?('
+    || 'uid[(][)][[:space:]]*(as[[:space:]]+[a-z0-9_]+)?[)[:space:]]*is[[:space:]]+not[[:space:]]+null'
+    || '|role[(][)][[:space:]]*(as[[:space:]]+[a-z0-9_]+)?[)[:space:]]*=[[:space:]]*''authenticated''(::text)?'
+    || ')[)[:space:]]*$' as motif
+),
+
+regles_connexion_seule as (
+  select
+    'protect.regle-connexion-seule'::text,
+    format('%I.%I', p.schemaname, p.tablename) || ' / ' || p.policyname,
+    format('commande=%s; roles=%s; using=%s; with_check=%s',
+      p.cmd, array_to_string(p.roles, ','),
+      case when p.qual is null then 'absent' when p.qual = 'true' then 'true' when t.using_connexion then 'connexion_seule' else 'filtre' end,
+      case when p.with_check is null then 'absent' when p.with_check = 'true' then 'true' when t.check_connexion then 'connexion_seule' else 'filtre' end)
+  from pg_policies p
+  cross join motif_connexion m
+  cross join lateral (
+    select
+      coalesce(p.qual ~* m.motif, false) as using_connexion,
+      coalesce(p.with_check ~* m.motif, false) as check_connexion
+  ) t
+  where p.schemaname = 'public'
+    and (t.using_connexion or t.check_connexion)
+),
+
+-- Une règle des fichiers dont la condition ne cite ni auth.uid() ni owner ni owner_id ne relie
+-- pas le fichier à son propriétaire : tout compte visé par la règle atteint tous les fichiers du dossier.
+-- Selon le chemin de recherche de celui qui lit, Postgres écrit auth.uid() ou uid() : les deux comptent.
+regles_fichiers_larges as (
+  select
+    'protect.regle-fichiers-large'::text,
+    format('%I.%I', p.schemaname, p.tablename) || ' / ' || p.policyname,
+    format('commande=%s; roles=%s; condition=%s',
+      p.cmd, array_to_string(p.roles, ','),
+      case when coalesce(nullif(p.qual, 'true'), nullif(p.with_check, 'true')) is null then 'aucune' else 'dossier seulement' end)
+  from pg_policies p
+  where p.schemaname = 'storage'
+    and p.tablename = 'objects'
+    and concat_ws(' ', p.qual, p.with_check) !~* '[[:<:]]uid[(]|owner'
 ),
 
 fonctions_privilegiees as (
@@ -157,6 +205,7 @@ fonctions_privilegiees as (
   cross join roles_api r
   where n.nspname = 'public'
     and p.prosecdef
+    and p.prorettype <> 'trigger'::regtype
     and (has_function_privilege(r.anon, p.oid, 'EXECUTE') or has_function_privilege(r.connecte, p.oid, 'EXECUTE'))
     and not exists (
       select 1 from pg_depend d
@@ -258,6 +307,8 @@ constats (controle, objet, detail) as (
   union all select * from droits_par_defaut
   union all select * from tables_sans_regles
   union all select * from regles_ouvertes
+  union all select * from regles_connexion_seule
+  union all select * from regles_fichiers_larges
   union all select * from fonctions_privilegiees
   union all select * from buckets_publics
 ),
@@ -266,7 +317,7 @@ attendus (controle) as (
   values
     ('protect.vue-contourne-regles'), ('protect.droits-visiteurs'), ('protect.droits-par-defaut'),
     ('protect.table-sans-regles'), ('protect.regle-ouverte-a-tous'), ('protect.fonction-privilegiee'),
-    ('protect.bucket-public')
+    ('protect.bucket-public'), ('protect.regle-connexion-seule'), ('protect.regle-fichiers-large')
 ),
 
 lignes (controle, objet, detail) as (
@@ -280,7 +331,7 @@ lignes (controle, objet, detail) as (
 
 select controle, objet, detail
 from (
-  select 0 as ordre, 'meta' as controle, 'version' as objet, '1' as detail
+  select 0 as ordre, 'meta' as controle, 'version' as objet, '2' as detail
   union all
   select 1, controle, objet, detail from lignes
   union all
